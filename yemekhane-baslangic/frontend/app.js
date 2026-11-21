@@ -2,6 +2,7 @@ const API = '/api';
 
 let token = localStorage.getItem('token');
 let kullanici = JSON.parse(localStorage.getItem('kullanici') || 'null');
+let kullaniciAlerjenleri = [];
 
 const el = (id) => document.getElementById(id);
 
@@ -22,7 +23,16 @@ async function apiIstek(yol, secenekler = {}) {
     return veri;
 }
 
-function arayuzuGuncelle() {
+async function kullaniciAlerjenleriniCek() {
+    try {
+        const veri = await apiIstek('/profil/alerjenler/');
+        kullaniciAlerjenleri = veri.alerjen_idleri || [];
+    } catch {
+        kullaniciAlerjenleri = [];
+    }
+}
+
+async function arayuzuGuncelle() {
     if (token && kullanici) {
         el('giris-bolumu').classList.add('gizli');
         el('ana-panel').classList.remove('gizli');
@@ -30,6 +40,7 @@ function arayuzuGuncelle() {
         el('ad-soyad').textContent = `${kullanici.ad_soyad} (${kullanici.rol})`;
         el('bakiye-gosterge').textContent = Number(kullanici.bakiye).toFixed(2);
         el('yonetici-sekme-btn').classList.toggle('gizli', kullanici.rol !== 'yonetici');
+        await kullaniciAlerjenleriniCek();
         menuleriYukle();
     } else {
         el('giris-bolumu').classList.remove('gizli');
@@ -38,7 +49,6 @@ function arayuzuGuncelle() {
     }
 }
 
-// GİRİŞ
 el('giris-formu').addEventListener('submit', async (e) => {
     e.preventDefault();
     try {
@@ -57,16 +67,15 @@ el('giris-formu').addEventListener('submit', async (e) => {
     }
 });
 
-// ÇIKIŞ
 el('cikis-btn').addEventListener('click', async () => {
     try { await apiIstek('/cikis/', { method: 'POST' }); } catch {}
     token = null;
     kullanici = null;
+    kullaniciAlerjenleri = [];
     localStorage.clear();
     arayuzuGuncelle();
 });
 
-// SEKMELER
 document.querySelectorAll('.sekme').forEach((btn) => {
     btn.addEventListener('click', () => {
         document.querySelectorAll('.sekme').forEach(b => b.classList.remove('aktif'));
@@ -77,11 +86,11 @@ document.querySelectorAll('.sekme').forEach((btn) => {
         if (btn.dataset.sekme === 'menuler') menuleriYukle();
         if (btn.dataset.sekme === 'rezervasyonlar') rezervasyonlariYukle();
         if (btn.dataset.sekme === 'bakiye') hareketleriYukle();
+        if (btn.dataset.sekme === 'profil') profilAlerjenleriYukle();
         if (btn.dataset.sekme === 'yonetici') yoneticiVerileriniYukle();
     });
 });
 
-// MENÜLER
 async function menuleriYukle(haftalik = false) {
     let sorgu = '';
     if (haftalik) {
@@ -101,13 +110,34 @@ async function menuleriYukle(haftalik = false) {
             return;
         }
         liste.innerHTML = veri.menuler.map(m => {
-            const fiyat = kullanici.rol === 'personel' ? m.personel_fiyati : m.ogrenci_fiyati;
-            const yemeklerHtml = m.yemekler.map(y => `
-                <li>
-                    <span>${y.yemek} ${y.vejetaryen ? '<span class="etiket veg">Vej</span>' : ''}</span>
-                    <span>${y.kalori} kcal</span>
-                </li>
-            `).join('');
+            const fiyat = kullanici.rol === 'ogrenci' ? m.ogrenci_fiyati : m.personel_fiyati;
+            const yarimFiyat = fiyat * 0.60;
+            const kahvaltiMi = m.ogun === 'Kahvaltı';
+
+            const yemeklerHtml = m.yemekler.map(y => {
+                const yemekAlerjenIdleri = y.alerjen_idler || [];
+                const uyariVar = yemekAlerjenIdleri.some(id => kullaniciAlerjenleri.includes(id));
+                return `
+                    <li class="${uyariVar ? 'alerjen-uyari-satir' : ''}">
+                        <div>
+                            <span>${y.yemek} ${y.vejetaryen ? '<span class="etiket veg">Vej</span>' : ''}</span>
+                            ${uyariVar ? '<span class="alerjen-uyari-rozet">⚠️ Alerjen Uyarısı</span>' : ''}
+                            ${y.alerjenler ? `<div class="alerjen-bilgi">Alerjenler: ${y.alerjenler}</div>` : ''}
+                        </div>
+                        <span>${y.kalori} kcal</span>
+                    </li>
+                `;
+            }).join('');
+
+            const porsiyonSecimHtml = kahvaltiMi
+                ? `<strong>Tam: ${fiyat.toFixed(2)} ₺</strong>`
+                : `
+                    <select id="porsiyon-${m.menu_id}" class="porsiyon-sec">
+                        <option value="tam">Tam (${fiyat.toFixed(2)} ₺)</option>
+                        <option value="yarim">Yarım (${yarimFiyat.toFixed(2)} ₺)</option>
+                    </select>
+                `;
+
             return `
                 <div class="menu-kart">
                     <div>
@@ -119,7 +149,7 @@ async function menuleriYukle(haftalik = false) {
                         <ul class="yemek-liste">${yemeklerHtml}</ul>
                     </div>
                     <div class="menu-alt">
-                        <strong>${fiyat.toFixed(2)} ₺</strong>
+                        ${porsiyonSecimHtml}
                         <button class="btn-birincil" onclick="rezervasyonYap(${m.menu_id})">Rezervasyon Yap</button>
                     </div>
                 </div>
@@ -134,22 +164,24 @@ el('menu-getir-btn').addEventListener('click', () => menuleriYukle(false));
 el('haftalik-btn').addEventListener('click', () => menuleriYukle(true));
 
 async function rezervasyonYap(menuId) {
+    const secim = el(`porsiyon-${menuId}`);
+    const porsiyon = secim ? secim.value : 'tam';
+
     try {
         const veri = await apiIstek('/rezervasyon/yap/', {
             method: 'POST',
-            body: JSON.stringify({ menu_id: menuId })
+            body: JSON.stringify({ menu_id: menuId, porsiyon })
         });
         kullanici.bakiye = veri.bakiye;
         localStorage.setItem('kullanici', JSON.stringify(kullanici));
         el('bakiye-gosterge').textContent = veri.bakiye.toFixed(2);
-        bildirimGoster(`${veri.mesaj} Yeni bakiye: ${veri.bakiye.toFixed(2)} ₺`);
+        bildirimGoster(`${veri.mesaj} (${veri.porsiyon === 'yarim' ? 'Yarım' : 'Tam'}) Yeni bakiye: ${veri.bakiye.toFixed(2)} ₺`);
         menuleriYukle();
     } catch (err) {
         bildirimGoster(err.message, 'hata');
     }
 }
 
-// REZERVASYONLARIM
 async function rezervasyonlariYukle() {
     try {
         const veri = await apiIstek('/rezervasyonlarim/');
@@ -162,7 +194,11 @@ async function rezervasyonlariYukle() {
             <div class="kart" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
                 <div>
                     <strong>${r.tarih} · ${r.yemekhane} (${r.ogun})</strong>
-                    <div class="menu-meta">Ücret: ${r.ucret.toFixed(2)} ₺ · <span class="durum ${r.durum}">${r.durum.toUpperCase()}</span></div>
+                    <div class="menu-meta">
+                        Porsiyon: <strong>${r.porsiyon === 'yarim' ? 'Yarım' : 'Tam'}</strong> ·
+                        Ücret: ${r.ucret.toFixed(2)} ₺ ·
+                        <span class="durum ${r.durum}">${r.durum.toUpperCase()}</span>
+                    </div>
                 </div>
                 <div>
                     ${r.durum === 'aktif' ? `<button class="btn-tehlike" onclick="rezervasyonIptal(${r.rezervasyon_id})">İptal Et</button>` : ''}
@@ -210,7 +246,6 @@ async function puanVer(menuId) {
     }
 }
 
-// BAKİYE
 el('bakiye-formu').addEventListener('submit', async (e) => {
     e.preventDefault();
     try {
@@ -245,10 +280,44 @@ async function hareketleriYukle() {
     }
 }
 
-// Başlangıç tarihi bugün olsun
+async function profilAlerjenleriYukle() {
+    try {
+        const [tumVeri, kullaniciVeri] = await Promise.all([
+            apiIstek('/alerjenler/'),
+            apiIstek('/profil/alerjenler/')
+        ]);
+        kullaniciAlerjenleri = kullaniciVeri.alerjen_idleri || [];
+        el('alerjen-listesi').innerHTML = tumVeri.alerjenler.map(a => `
+            <label class="onay-kutu">
+                <input type="checkbox" name="kullanici_alerjen" value="${a.id}" ${kullaniciAlerjenleri.includes(a.id) ? 'checked' : ''}>
+                ${a.ad}
+            </label>
+        `).join('');
+    } catch (err) {
+        bildirimGoster(err.message, 'hata');
+    }
+}
+
+el('alerjen-formu').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const seciliIdler = Array.from(
+        document.querySelectorAll('input[name="kullanici_alerjen"]:checked')
+    ).map(cb => Number(cb.value));
+
+    try {
+        const veri = await apiIstek('/profil/alerjenler/', {
+            method: 'POST',
+            body: JSON.stringify({ alerjen_idleri: seciliIdler })
+        });
+        kullaniciAlerjenleri = veri.alerjen_idleri;
+        bildirimGoster(veri.mesaj);
+    } catch (err) {
+        bildirimGoster(err.message, 'hata');
+    }
+});
+
 el('tarih-sec').value = new Date().toISOString().slice(0, 10);
 
-// YÖNETİCİ PANELİ
 async function yoneticiVerileriniYukle() {
     try {
         const veri = await apiIstek('/yonetici/referanslar/');
@@ -319,4 +388,5 @@ el('menu-olustur-formu').addEventListener('submit', async (e) => {
         bildirimGoster(err.message, 'hata');
     }
 });
+
 arayuzuGuncelle();

@@ -19,7 +19,6 @@
     <main class="kapsayici">
         <div id="bildirim" class="bildirim gizli"></div>
 
-        <!-- GİRİŞ EKRANI -->
         <section id="giris-bolumu" class="kart giris-karti">
             <h2>Sisteme Giriş</h2>
             <form id="giris-formu">
@@ -33,16 +32,15 @@
             </form>
         </section>
 
-        <!-- ANA PANEL -->
         <section id="ana-panel" class="gizli">
             <nav class="sekmeler">
                 <button class="sekme aktif" data-sekme="menuler">Menüler</button>
                 <button class="sekme" data-sekme="rezervasyonlar">Rezervasyonlarım</button>
                 <button class="sekme" data-sekme="bakiye">Bakiye & Hareketler</button>
+                <button class="sekme" data-sekme="profil">Profil & Alerjenler</button>
                 <button id="yonetici-sekme-btn" class="sekme gizli" data-sekme="yonetici">Yönetici Paneli</button>
             </nav>
 
-            <!-- MENÜLER SEKMESİ -->
             <div id="sekme-menuler" class="sekme-icerik">
                 <div class="filtre-bar">
                     <label for="tarih-sec">Tarih:</label>
@@ -53,12 +51,10 @@
                 <div id="menu-listesi" class="menu-izgara"></div>
             </div>
 
-            <!-- REZERVASYONLARIM SEKMESİ -->
             <div id="sekme-rezervasyonlar" class="sekme-icerik gizli">
                 <div id="rezervasyon-listesi"></div>
             </div>
 
-            <!-- BAKİYE SEKMESİ -->
             <div id="sekme-bakiye" class="sekme-icerik gizli">
                 <div class="kart">
                     <h3>Bakiye Yükle</h3>
@@ -83,37 +79,47 @@
                 </div>
             </div>
 
-            <!-- YÖNETİCİ PANELİ SEKMESİ -->
-          <div id="sekme-yonetici" class="sekme-icerik gizli">
-              <div class="kart">
-                  <h3>Yeni Yemek Ekle</h3>
-                  <form id="yemek-ekle-formu" class="yonetici-form">
-                      <select id="yemek-kategori" required></select>
-                      <input type="text" id="yemek-ad" placeholder="Yemek adı" required>
-                      <input type="number" id="yemek-kalori" min="0" placeholder="Kalori (kcal)" required>
-                      <label class="onay-kutu">
-                          <input type="checkbox" id="yemek-vejetaryen"> Vejetaryen
-                      </label>
-                      <button type="submit" class="btn-birincil">Yemek Ekle</button>
-                  </form>
-              </div>
+            <div id="sekme-profil" class="sekme-icerik gizli">
+                <div class="kart">
+                    <h3>Alerjen Tercihlerim</h3>
+                    <p class="menu-meta">Alerjiniz olan besinleri seçin. Menüde bu alerjenleri içeren yemekler uyarıyla gösterilecektir.</p>
+                    <form id="alerjen-formu" class="yonetici-form">
+                        <div id="alerjen-listesi" class="yemek-secim-izgara"></div>
+                        <button type="submit" class="btn-birincil">Alerjenleri Kaydet</button>
+                    </form>
+                </div>
+            </div>
 
-              <div class="kart">
-                  <h3>Yeni Menü Oluştur</h3>
-                  <form id="menu-olustur-formu" class="yonetici-form">
-                      <select id="menu-yemekhane" required></select>
-                      <input type="date" id="menu-tarih" required>
-                      <select id="menu-ogun" required></select>
-                      <input type="number" id="menu-ogrenci-fiyat" step="0.01" min="0" placeholder="Öğrenci Fiyatı (₺)" required>
-                      <input type="number" id="menu-personel-fiyat" step="0.01" min="0" placeholder="Personel Fiyatı (₺)" required>
-                      <div class="yemek-secim-alani">
-                          <strong>Menüdeki Yemekleri Seçin:</strong>
-                          <div id="menu-yemek-listesi" class="yemek-secim-izgara"></div>
-                      </div>
-                      <button type="submit" class="btn-birincil">Menüyü Kaydet</button>
-                  </form>
-              </div>
-          </div>
+            <div id="sekme-yonetici" class="sekme-icerik gizli">
+                <div class="kart">
+                    <h3>Yeni Yemek Ekle</h3>
+                    <form id="yemek-ekle-formu" class="yonetici-form">
+                        <select id="yemek-kategori" required></select>
+                        <input type="text" id="yemek-ad" placeholder="Yemek adı" required>
+                        <input type="number" id="yemek-kalori" min="0" placeholder="Kalori (kcal)" required>
+                        <label class="onay-kutu">
+                            <input type="checkbox" id="yemek-vejetaryen"> Vejetaryen
+                        </label>
+                        <button type="submit" class="btn-birincil">Yemek Ekle</button>
+                    </form>
+                </div>
+
+                <div class="kart">
+                    <h3>Yeni Menü Oluştur</h3>
+                    <form id="menu-olustur-formu" class="yonetici-form">
+                        <select id="menu-yemekhane" required></select>
+                        <input type="date" id="menu-tarih" required>
+                        <select id="menu-ogun" required></select>
+                        <input type="number" id="menu-ogrenci-fiyat" step="0.01" min="0" placeholder="Öğrenci Fiyatı (₺)" required>
+                        <input type="number" id="menu-personel-fiyat" step="0.01" min="0" placeholder="Personel Fiyatı (₺)" required>
+                        <div class="yemek-secim-alani">
+                            <strong>Menüdeki Yemekleri Seçin:</strong>
+                            <div id="menu-yemek-listesi" class="yemek-secim-izgara"></div>
+                        </div>
+                        <button type="submit" class="btn-birincil">Menüyü Kaydet</button>
+                    </form>
+                </div>
+            </div>
         </section>
     </main>
 
