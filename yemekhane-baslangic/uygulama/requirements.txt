@@ -3,3 +3,4 @@ mysqlclient
 redis
 django-cors-headers
 bcrypt
+redis

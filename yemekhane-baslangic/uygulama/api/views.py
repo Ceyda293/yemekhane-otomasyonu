@@ -3,16 +3,14 @@ import uuid
 import bcrypt
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
-from . import veri_katmani
+from . import veri_katmani, redis_istemci
 
-# Geçici bellek içi oturum deposu 
-AKTIF_OTURUMLAR = {}
 
 @csrf_exempt
 def giris_yap(request):
     if request.method != 'POST':
         return JsonResponse({'hata': 'Sadece POST isteği kabul edilir.'}, status=405)
-    
+
     try:
         veri = json.loads(request.body)
         eposta = veri.get('eposta', '').strip()
@@ -39,7 +37,7 @@ def giris_yap(request):
         'rol': kullanici['rol'],
         'bakiye': float(kullanici['bakiye']),
     }
-    AKTIF_OTURUMLAR[token] = oturum_bilgisi
+    redis_istemci.oturum_kaydet(token, oturum_bilgisi)
 
     return JsonResponse({
         'mesaj': 'Giriş başarılı.',
@@ -47,15 +45,15 @@ def giris_yap(request):
         'kullanici': oturum_bilgisi
     })
 
+
 @csrf_exempt
 def cikis_yap(request):
     if request.method != 'POST':
         return JsonResponse({'hata': 'Sadece POST isteği kabul edilir.'}, status=405)
-    
-    token = request.headers.get('Authorization', '').replace('Bearer ', '')
-    AKTIF_OTURUMLAR.pop(token, None)
-    return JsonResponse({'mesaj': 'Çıkış yapıldı.'})
 
+    token = request.headers.get('Authorization', '').replace('Bearer ', '').strip()
+    redis_istemci.oturum_sil(token)
+    return JsonResponse({'mesaj': 'Çıkış yapıldı.'})
 
 
 def menuler_listele(request):
@@ -67,6 +65,11 @@ def menuler_listele(request):
     bitis = request.GET.get('bitis')
     yemekhane_id = request.GET.get('yemekhane_id')
     ogun_id = request.GET.get('ogun_id')
+
+    anahtar = f"{tarih or ''}:{baslangic or ''}:{bitis or ''}:{yemekhane_id or ''}:{ogun_id or ''}"
+    onbellek = redis_istemci.menu_onbellek_getir(anahtar)
+    if onbellek is not None:
+        return JsonResponse({'menuler': onbellek, 'kaynak': 'redis'})
 
     satirlar = veri_katmani.menuleri_getir(
         tarih=tarih,
@@ -82,12 +85,12 @@ def menuler_listele(request):
         if m_id not in menuler:
             menuler[m_id] = {
                 'menu_id': m_id,
-                'tarih': s['tarih'],
+                'tarih': str(s['tarih']),
                 'yemekhane_id': s['yemekhane_id'],
                 'yemekhane': s['yemekhane'],
                 'ogun_id': s['ogun_id'],
                 'ogun': s['ogun'],
-                'rezervasyon_son': s['rezervasyon_son'],
+                'rezervasyon_son': str(s['rezervasyon_son']) if s['rezervasyon_son'] is not None else None,
                 'ogrenci_fiyati': float(s['ogrenci_fiyati']),
                 'personel_fiyati': float(s['personel_fiyati']),
                 'kapasite': s['kapasite'],
@@ -112,14 +115,15 @@ def menuler_listele(request):
                 'alerjenler': s['alerjenler']
             })
 
-    return JsonResponse({'menuler': list(menuler.values())})
-
+    menu_listesi = list(menuler.values())
+    redis_istemci.menu_onbellek_kaydet(anahtar, menu_listesi)
+    return JsonResponse({'menuler': menu_listesi, 'kaynak': 'mysql'})
 
 
 def _oturum_kullanici(request):
-    """Authorization: Bearer <token> başlığından giriş yapmış kullanıcıyı döner."""
     token = request.headers.get('Authorization', '').replace('Bearer ', '').strip()
-    return AKTIF_OTURUMLAR.get(token), token
+    return redis_istemci.oturum_getir(token), token
+
 
 @csrf_exempt
 def rezervasyon_yap(request):
@@ -138,7 +142,9 @@ def rezervasyon_yap(request):
 
     try:
         sonuc = veri_katmani.rezervasyon_yap(kullanici['id'], menu_id)
-        AKTIF_OTURUMLAR[token]['bakiye'] = float(sonuc['bakiye'])
+        kullanici['bakiye'] = float(sonuc['bakiye'])
+        redis_istemci.oturum_kaydet(token, kullanici)
+        redis_istemci.menu_onbellek_temizle()
         return JsonResponse({
             'mesaj': 'Rezervasyon oluşturuldu.',
             'rezervasyon_id': sonuc['rezervasyon_id'],
@@ -147,6 +153,7 @@ def rezervasyon_yap(request):
         })
     except veri_katmani.IsKuraliHatasi as e:
         return JsonResponse({'hata': str(e)}, status=400)
+
 
 @csrf_exempt
 def rezervasyon_iptal(request):
@@ -165,7 +172,9 @@ def rezervasyon_iptal(request):
 
     try:
         sonuc = veri_katmani.rezervasyon_iptal(kullanici['id'], rezervasyon_id)
-        AKTIF_OTURUMLAR[token]['bakiye'] = float(sonuc['bakiye'])
+        kullanici['bakiye'] = float(sonuc['bakiye'])
+        redis_istemci.oturum_kaydet(token, kullanici)
+        redis_istemci.menu_onbellek_temizle()
         return JsonResponse({
             'mesaj': 'Rezervasyon iptal edildi.',
             'rezervasyon_id': sonuc['rezervasyon_id'],
@@ -174,6 +183,7 @@ def rezervasyon_iptal(request):
         })
     except veri_katmani.IsKuraliHatasi as e:
         return JsonResponse({'hata': str(e)}, status=400)
+
 
 @csrf_exempt
 def bakiye_yukle(request):
@@ -192,7 +202,8 @@ def bakiye_yukle(request):
 
     try:
         sonuc = veri_katmani.bakiye_yukle(kullanici['id'], tutar)
-        AKTIF_OTURUMLAR[token]['bakiye'] = float(sonuc['bakiye'])
+        kullanici['bakiye'] = float(sonuc['bakiye'])
+        redis_istemci.oturum_kaydet(token, kullanici)
         return JsonResponse({
             'mesaj': 'Bakiye yüklendi.',
             'hareket_id': sonuc['hareket_id'],
@@ -200,8 +211,6 @@ def bakiye_yukle(request):
         })
     except veri_katmani.IsKuraliHatasi as e:
         return JsonResponse({'hata': str(e)}, status=400)
-
-
 
 
 def rezervasyonlarim(request):
@@ -217,6 +226,7 @@ def rezervasyonlarim(request):
         s['ucret'] = float(s['ucret'])
     return JsonResponse({'rezervasyonlar': satirlar})
 
+
 def bakiye_hareketleri(request):
     if request.method != 'GET':
         return JsonResponse({'hata': 'Sadece GET isteği kabul edilir.'}, status=405)
@@ -229,6 +239,7 @@ def bakiye_hareketleri(request):
     for s in satirlar:
         s['tutar'] = float(s['tutar'])
     return JsonResponse({'hareketler': satirlar})
+
 
 @csrf_exempt
 def degerlendirme_yap(request):
@@ -252,10 +263,10 @@ def degerlendirme_yap(request):
 
     try:
         veri_katmani.degerlendirme_kaydet(kullanici['id'], menu_id, puan, yorum)
+        redis_istemci.menu_onbellek_temizle()
         return JsonResponse({'mesaj': 'Değerlendirmeniz kaydedildi.'})
     except veri_katmani.IsKuraliHatasi as e:
         return JsonResponse({'hata': str(e)}, status=400)
-
 
 
 def _yonetici_kontrol(request):
@@ -266,6 +277,7 @@ def _yonetici_kontrol(request):
         return None, JsonResponse({'hata': 'Bu işlem için yönetici yetkisi gerekiyor.'}, status=403)
     return kullanici, None
 
+
 def yonetici_referanslar(request):
     if request.method != 'GET':
         return JsonResponse({'hata': 'Sadece GET isteği kabul edilir.'}, status=405)
@@ -273,6 +285,7 @@ def yonetici_referanslar(request):
     if hata:
         return hata
     return JsonResponse(veri_katmani.yonetici_referans_verileri())
+
 
 @csrf_exempt
 def yonetici_yemek_ekle(request):
@@ -299,6 +312,7 @@ def yonetici_yemek_ekle(request):
     except veri_katmani.IsKuraliHatasi as e:
         return JsonResponse({'hata': str(e)}, status=400)
 
+
 @csrf_exempt
 def yonetici_menu_olustur(request):
     if request.method != 'POST':
@@ -324,6 +338,7 @@ def yonetici_menu_olustur(request):
         menu_id = veri_katmani.menu_olustur(
             yemekhane_id, tarih, ogun_id, ogrenci_fiyati, personel_fiyati, yemek_idleri
         )
+        redis_istemci.menu_onbellek_temizle()
         return JsonResponse({'mesaj': 'Menü oluşturuldu.', 'menu_id': menu_id}, status=201)
     except veri_katmani.IsKuraliHatasi as e:
         return JsonResponse({'hata': str(e)}, status=400)
