@@ -117,7 +117,9 @@ def menuler_listele(request):
                 'kategori': s['kategori'],
                 'kalori': kalori,
                 'vejetaryen': bool(s['vejetaryen']),
-                'alerjenler': s['alerjenler']
+                'alerjenler': s['alerjenler'],
+                'alerjen_idler': [int(x) for x in s['alerjen_idler'].split(',')] if s.get('alerjen_idler') else [],
+
             })
 
     menu_listesi = list(menuler.values())
@@ -143,24 +145,25 @@ def rezervasyon_yap(request):
     try:
         veri = json.loads(request.body)
         menu_id = int(veri.get('menu_id'))
+        porsiyon = (veri.get('porsiyon') or 'tam').strip()
     except (json.JSONDecodeError, TypeError, ValueError):
         return JsonResponse({'hata': 'Geçerli bir menu_id göndermelisiniz.'}, status=400)
 
     try:
-        sonuc = veri_katmani.rezervasyon_yap(kullanici['id'], menu_id)
+        sonuc = veri_katmani.rezervasyon_yap(kullanici['id'], menu_id, porsiyon)
         kullanici['bakiye'] = float(sonuc['bakiye'])
         redis_istemci.oturum_kaydet(token, kullanici)
         redis_istemci.menu_onbellek_temizle()
         return JsonResponse({
             'mesaj': 'Rezervasyon oluşturuldu.',
             'rezervasyon_id': sonuc['rezervasyon_id'],
+            'porsiyon': sonuc['porsiyon'],
             'ucret': float(sonuc['ucret']),
             'bakiye': float(sonuc['bakiye']),
         })
     except veri_katmani.IsKuraliHatasi as e:
         return JsonResponse({'hata': str(e)}, status=400)
-
-
+    
 @csrf_exempt
 def rezervasyon_iptal(request):
     if request.method != 'POST':
@@ -348,3 +351,36 @@ def yonetici_menu_olustur(request):
         return JsonResponse({'mesaj': 'Menü oluşturuldu.', 'menu_id': menu_id}, status=201)
     except veri_katmani.IsKuraliHatasi as e:
         return JsonResponse({'hata': str(e)}, status=400)
+
+
+def alerjenler_listele(request):
+    if request.method != 'GET':
+        return JsonResponse({'hata': 'Sadece GET isteği kabul edilir.'}, status=405)
+    return JsonResponse({'alerjenler': veri_katmani.alerjenleri_getir()})
+
+
+@csrf_exempt
+def profil_alerjenler(request):
+    kullanici, _ = _oturum_kullanici(request)
+    if not kullanici:
+        return JsonResponse({'hata': 'Oturum açmanız gerekiyor.'}, status=401)
+
+    if request.method == 'GET':
+        return JsonResponse({
+            'alerjen_idleri': veri_katmani.kullanici_alerjenleri_getir(kullanici['id'])
+        })
+
+    if request.method == 'POST':
+        try:
+            veri = json.loads(request.body)
+            alerjen_idleri = [int(x) for x in veri.get('alerjen_idleri', [])]
+        except (json.JSONDecodeError, TypeError, ValueError):
+            return JsonResponse({'hata': 'Geçerli alerjen listesi göndermelisiniz.'}, status=400)
+
+        veri_katmani.kullanici_alerjenleri_kaydet(kullanici['id'], alerjen_idleri)
+        return JsonResponse({
+            'mesaj': 'Alerjen tercihleriniz kaydedildi.',
+            'alerjen_idleri': alerjen_idleri
+        })
+
+    return JsonResponse({'hata': 'Sadece GET veya POST isteği kabul edilir.'}, status=405)

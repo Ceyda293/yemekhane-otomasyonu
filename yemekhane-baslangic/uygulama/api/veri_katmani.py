@@ -1,12 +1,12 @@
 from django.db import connections, DatabaseError, transaction
 
+
 def dictfetchall(cursor):
-    """Sorgu sonuçlarını sözlük (JSON'a uygun) listesine çevirir."""
     columns = [col[0] for col in cursor.description]
     return [dict(zip(columns, row)) for row in cursor.fetchall()]
 
+
 def kullanici_getir_eposta(eposta):
-    """Okuma işlemi olduğu için replica veritabanından kullanıcıyı getirir."""
     with connections['replica'].cursor() as cursor:
         cursor.execute(
             "SELECT id, ad, soyad, eposta, sifre_hash, rol, ogrenci_no, bakiye "
@@ -18,14 +18,13 @@ def kullanici_getir_eposta(eposta):
 
 
 def menuleri_getir(tarih=None, baslangic=None, bitis=None, yemekhane_id=None, ogun_id=None):
-    """Menü detaylarını, doluluk ve puan bilgileriyle birlikte replica'dan çeker."""
     sorgu = """
         SELECT 
             d.menu_id, d.tarih, d.yemekhane_id, d.yemekhane,
             d.ogun_id, d.ogun, d.ogun_sira, d.rezervasyon_son,
             d.ogrenci_fiyati, d.personel_fiyati,
             d.yemek_id, d.yemek, d.kategori, d.kategori_sira,
-            d.kalori, d.vejetaryen, d.alerjenler,
+            d.kalori, d.vejetaryen, d.alerjenler, d.alerjen_idler,
             dol.kapasite, dol.rezerve, dol.bos_yer, dol.doluluk_yuzde,
             p.oy_sayisi, p.ortalama_puan
         FROM v_menu_detay d
@@ -60,11 +59,10 @@ def menuleri_getir(tarih=None, baslangic=None, bitis=None, yemekhane_id=None, og
 
 
 class IsKuraliHatasi(Exception):
-    """Stored procedure'den dönen 1644 (SQLSTATE 45000) iş kuralı hataları."""
     pass
 
+
 def _sp_cagir(sp_adi, parametreler):
-    """Stored procedure'ü primary (default) veritabanında çalıştırır ve tek satır döner."""
     placeholders = ", ".join(["%s"] * len(parametreler))
     try:
         with connections['default'].cursor() as cursor:
@@ -78,22 +76,23 @@ def _sp_cagir(sp_adi, parametreler):
             raise IsKuraliHatasi(hata_mesaji)
         raise
 
-def rezervasyon_yap(kullanici_id, menu_id):
-    return _sp_cagir("sp_rezervasyon_yap", [kullanici_id, menu_id])
+
+def rezervasyon_yap(kullanici_id, menu_id, porsiyon='tam'):
+    return _sp_cagir("sp_rezervasyon_yap", [kullanici_id, menu_id, porsiyon])
+
 
 def rezervasyon_iptal(kullanici_id, rezervasyon_id):
     return _sp_cagir("sp_rezervasyon_iptal", [kullanici_id, rezervasyon_id])
+
 
 def bakiye_yukle(kullanici_id, tutar):
     return _sp_cagir("sp_bakiye_yukle", [kullanici_id, tutar])
 
 
-
 def kullanici_rezervasyonlari_getir(kullanici_id):
-    """Kullanıcının rezervasyonlarını menü ve varsa kendi puanıyla birlikte replica'dan çeker."""
     sorgu = """
         SELECT 
-            r.id AS rezervasyon_id, r.menu_id, r.durum, r.ucret,
+            r.id AS rezervasyon_id, r.menu_id, r.durum, r.porsiyon, r.ucret,
             r.olusturma, r.kullanma_zamani, r.iptal_zamani,
             m.tarih, m.yemekhane, m.ogun, m.rezervasyon_son,
             d.puan, d.yorum
@@ -108,8 +107,8 @@ def kullanici_rezervasyonlari_getir(kullanici_id):
         cursor.execute(sorgu, [kullanici_id])
         return dictfetchall(cursor)
 
+
 def kullanici_bakiye_hareketleri_getir(kullanici_id):
-    """Kullanıcının son 50 bakiye hareketini replica'dan çeker."""
     sorgu = """
         SELECT id, tur, tutar, rezervasyon_id, aciklama, olusturma
         FROM bakiye_hareketleri
@@ -121,8 +120,8 @@ def kullanici_bakiye_hareketleri_getir(kullanici_id):
         cursor.execute(sorgu, [kullanici_id])
         return dictfetchall(cursor)
 
+
 def degerlendirme_kaydet(kullanici_id, menu_id, puan, yorum=None):
-    """Yalnızca 'kullanildi' durumundaki menülere primary veritabanında puan kaydeder."""
     with connections['default'].cursor() as cursor:
         cursor.execute(
             "SELECT id FROM rezervasyonlar "
@@ -150,9 +149,36 @@ def degerlendirme_kaydet(kullanici_id, menu_id, puan, yorum=None):
             )
 
 
+def alerjenleri_getir():
+    with connections['replica'].cursor() as cursor:
+        cursor.execute("SELECT id, ad FROM alerjenler ORDER BY id")
+        return dictfetchall(cursor)
+
+
+def kullanici_alerjenleri_getir(kullanici_id):
+    with connections['replica'].cursor() as cursor:
+        cursor.execute(
+            "SELECT alerjen_id FROM kullanici_alerjenleri WHERE kullanici_id = %s ORDER BY alerjen_id",
+            [kullanici_id]
+        )
+        return [satir[0] for satir in cursor.fetchall()]
+
+
+def kullanici_alerjenleri_kaydet(kullanici_id, alerjen_idleri):
+    with transaction.atomic(using='default'):
+        with connections['default'].cursor() as cursor:
+            cursor.execute(
+                "DELETE FROM kullanici_alerjenleri WHERE kullanici_id = %s",
+                [kullanici_id]
+            )
+            for a_id in set(alerjen_idleri):
+                cursor.execute(
+                    "INSERT INTO kullanici_alerjenleri (kullanici_id, alerjen_id) VALUES (%s, %s)",
+                    [kullanici_id, a_id]
+                )
+
 
 def yonetici_referans_verileri():
-    """Yönetici formları için yemekhane, öğün, kategori ve yemek listelerini replica'dan çeker."""
     with connections['replica'].cursor() as cursor:
         cursor.execute("SELECT * FROM yemekhaneler ORDER BY id")
         yemekhaneler = dictfetchall(cursor)
@@ -173,8 +199,8 @@ def yonetici_referans_verileri():
         'yemekler': yemekler,
     }
 
+
 def yemek_ekle(kategori_id, ad, kalori, vejetaryen):
-    """Yeni yemeği primary veritabanına ekler."""
     try:
         with connections['default'].cursor() as cursor:
             cursor.execute(
@@ -187,8 +213,8 @@ def yemek_ekle(kategori_id, ad, kalori, vejetaryen):
             raise IsKuraliHatasi("Bu isimde bir yemek zaten kayıtlı.")
         raise
 
+
 def menu_olustur(yemekhane_id, tarih, ogun_id, ogrenci_fiyati, personel_fiyati, yemek_idleri):
-    """Yeni menüyü ve yemeklerini tek transaction içinde primary veritabanına ekler."""
     try:
         with transaction.atomic(using='default'):
             with connections['default'].cursor() as cursor:

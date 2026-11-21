@@ -11,6 +11,8 @@ urlpatterns = [
     path('bakiye/yukle/', views.bakiye_yukle),
     path('bakiye/hareketler/', views.bakiye_hareketleri),
     path('degerlendirme/', views.degerlendirme_yap),
+    path('alerjenler/', views.alerjenler_listele),
+    path('profil/alerjenler/', views.profil_alerjenler),
     path('yonetici/referanslar/', views.yonetici_referanslar),
     path('yonetici/yemek-ekle/', views.yonetici_yemek_ekle),
     path('yonetici/menu-olustur/', views.yonetici_menu_olustur),
