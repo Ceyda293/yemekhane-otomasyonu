@@ -66,9 +66,14 @@ def menuler_listele(request):
     yemekhane_id = request.GET.get('yemekhane_id')
     ogun_id = request.GET.get('ogun_id')
 
-    anahtar = f"{tarih or ''}:{baslangic or ''}:{bitis or ''}:{yemekhane_id or ''}:{ogun_id or ''}"
+    if tarih:
+        anahtar = f"{yemekhane_id or 'hepsi'}:{tarih}:{ogun_id or 'hepsi'}"
+    else:
+        anahtar = f"{yemekhane_id or 'hepsi'}:{baslangic or ''}-{bitis or ''}:{ogun_id or 'hepsi'}"
+
     onbellek = redis_istemci.menu_onbellek_getir(anahtar)
     if onbellek is not None:
+        print(f"[REDIS] Menu onbellekten geldi: menu:{anahtar}", flush=True)
         return JsonResponse({'menuler': onbellek, 'kaynak': 'redis'})
 
     satirlar = veri_katmani.menuleri_getir(
@@ -117,6 +122,7 @@ def menuler_listele(request):
 
     menu_listesi = list(menuler.values())
     redis_istemci.menu_onbellek_kaydet(anahtar, menu_listesi)
+    print(f"[MYSQL] Menu veritabanindan geldi ve Redis'e yazildi: menu:{anahtar}", flush=True)
     return JsonResponse({'menuler': menu_listesi, 'kaynak': 'mysql'})
 
 
