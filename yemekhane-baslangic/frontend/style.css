@@ -1,0 +1,66 @@
+* { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, sans-serif; }
+body { background: #f4f6f9; color: #222; }
+.gizli { display: none !important; }
+
+.ust-bar {
+    background: #1e3a5f; color: #fff; padding: 14px 24px;
+    display: flex; justify-content: space-between; align-items: center;
+}
+.logo { font-size: 1.2rem; font-weight: 700; }
+.kullanici-bilgi { display: flex; align-items: center; gap: 14px; font-size: 0.95rem; }
+.bakiye-rozet { background: #2d5a8e; padding: 5px 10px; border-radius: 6px; }
+
+.kapsayici { max-width: 1050px; margin: 24px auto; padding: 0 16px; }
+.kart { background: #fff; border-radius: 10px; padding: 20px; margin-bottom: 18px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+.giris-karti { max-width: 400px; margin: 60px auto; }
+.giris-karti h2 { margin-bottom: 16px; color: #1e3a5f; }
+.giris-karti label { display: block; margin: 10px 0 4px; font-size: 0.9rem; font-weight: 600; }
+.giris-karti input { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; margin-bottom: 10px; }
+
+.btn-birincil { background: #1e3a5f; color: #fff; border: none; padding: 9px 16px; border-radius: 6px; cursor: pointer; font-weight: 600; }
+.btn-birincil:hover { background: #162c47; }
+.btn-ikincil { background: #e2e8f0; color: #1e293b; border: none; padding: 8px 14px; border-radius: 6px; cursor: pointer; font-weight: 600; }
+.btn-tehlike { background: #dc2626; color: #fff; border: none; padding: 7px 12px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; }
+
+.bildirim { padding: 12px 16px; border-radius: 8px; margin-bottom: 16px; font-weight: 600; }
+.bildirim.basari { background: #dcfce7; color: #166534; }
+.bildirim.hata { background: #fee2e2; color: #991b1b; }
+
+.sekmeler { display: flex; gap: 8px; margin-bottom: 18px; }
+.sekme { padding: 10px 18px; border: none; background: #e2e8f0; border-radius: 8px; cursor: pointer; font-weight: 600; }
+.sekme.aktif { background: #1e3a5f; color: #fff; }
+
+.filtre-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
+.filtre-bar input { padding: 8px; border: 1px solid #ccc; border-radius: 6px; }
+
+.menu-izgara { display: grid; grid-template-columns: repeat(auto-fill, minmax(310px, 1fr)); gap: 16px; }
+.menu-kart { background: #fff; border-radius: 10px; padding: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); display: flex; flex-direction: column; justify-content: space-between; }
+.menu-baslik { border-bottom: 1px solid #eee; padding-bottom: 8px; margin-bottom: 10px; }
+.menu-baslik h3 { color: #1e3a5f; font-size: 1.05rem; }
+.menu-meta { font-size: 0.82rem; color: #555; margin-top: 4px; }
+.yemek-liste { list-style: none; margin: 10px 0; }
+.yemek-liste li { padding: 5px 0; border-bottom: 1px dashed #eee; font-size: 0.9rem; display: flex; justify-content: space-between; gap: 8px; }
+.etiket { font-size: 0.72rem; padding: 2px 6px; border-radius: 4px; background: #e0f2fe; color: #0369a1; margin-left: 4px; }
+.etiket.veg { background: #dcfce7; color: #15803d; }
+.menu-alt { margin-top: 12px; display: flex; justify-content: space-between; align-items: center; font-size: 0.88rem; }
+
+.satir-form { display: flex; gap: 10px; margin-top: 10px; }
+.satir-form input { padding: 9px; border: 1px solid #ccc; border-radius: 6px; width: 180px; }
+
+.tablo { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 0.9rem; }
+.tablo th, .tablo td { text-align: left; padding: 10px; border-bottom: 1px solid #e5e7eb; }
+.tablo th { background: #f8fafc; color: #334155; }
+
+.durum { padding: 3px 8px; border-radius: 12px; font-size: 0.78rem; font-weight: 700; }
+.durum.aktif { background: #dbeafe; color: #1d4ed8; }
+.durum.kullanildi { background: #dcfce7; color: #15803d; }
+.durum.iptal { background: #fee2e2; color: #b91c1c; }
+
+.yonetici-form { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; align-items: center; }
+.yonetici-form input[type="text"],
+.yonetici-form input[type="number"],
+.yonetici-form input[type="date"],
+.yonetici-form select { padding: 9px; border: 1px solid #ccc; border-radius: 6px; min-width: 170px; }
+.onay-kutu { display: flex; align-items: center; gap: 6px; font-size: 0.9rem; cursor: pointer; }
+.yemek-secim-alani { width: 100%; margin-top: 8px; }
+.yemek-secim-izgara { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 6px; margin-top: 8px; max-height: 220px; overflow-y: auto; border: 1px solid #e5e7eb; padding: 10px; border-radius: 6px; }
